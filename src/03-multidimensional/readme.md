@@ -26,3 +26,4 @@ vecAddKernel <<<dimGrid, dimBlock>>>(...); // total threads: dimGrid * dimBlock 
 
 - vertical row coordinate = blockIdx.y*blockDim.y + threadIdx.y
 - horizontal coordinate = blockIdx.x * blockDim.x + threadIdx.x
+- plane / z / depth coordinate = blockIdx.z * blockDim.z + threadIdx.z
