@@ -12,6 +12,7 @@
 void printMatrix(float M[WIDTH][WIDTH]);
 float* linearizeMatrix(float M[WIDTH][WIDTH]);
 void printLinearMatrix(float *M);
+void initializeMatrix(float M[WIDTH][WIDTH]);
 
 __global__ void MatrixMulKernel(float *M, float *N, float *P,int Width);
 void MatrixMul(float *M_h, float *N_h, float *P_h);
@@ -21,8 +22,11 @@ int main(){
     printf("matrix multiplication\n");
     // initialize 2D matrix. linearize later
     float M[WIDTH][WIDTH] = {0}, N[WIDTH][WIDTH] = {0}, P[WIDTH][WIDTH] = {0};
+    initializeMatrix(M);
+    initializeMatrix(N);
 
-    // printMatrix(M);
+    printMatrix(M);
+    printMatrix(N);
 
     float *linearM = linearizeMatrix(M);
     float *linearN = linearizeMatrix(N);
@@ -30,7 +34,7 @@ int main(){
 
     MatrixMul(linearM, linearN, linearP);
 
-    printLinearMatrix(linearM);
+    printLinearMatrix(linearP);
 
     return 0;
 }
@@ -128,4 +132,16 @@ float* linearizeMatrix(float M[WIDTH][WIDTH]){
         }
     }
     return linearM;
+}
+
+
+void initializeMatrix(float M[WIDTH][WIDTH]){
+    int i, j;
+    int val = 1;
+    for(i=0; i < WIDTH; i++) {
+        for(j=0; j < WIDTH; j++, val++){
+            M[i][j] = val;
+        }
+    }
+
 }
