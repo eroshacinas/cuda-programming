@@ -8,6 +8,14 @@
 #define BLOCK_SIZE 4 
 #define GRID_SIZE 4
 
+/*
+    TODO:
+    1. optimize block and grid size to minimize unused threads depending on matrix shape
+    2. make matrix irregular
+    3. further optimize matmult kernel: use another set of threads to eliminate for loop? its a dot product after all
+*/
+
+
 // func prototypes
 void printMatrix(float M[WIDTH][WIDTH]);
 float* linearizeMatrix(float M[WIDTH][WIDTH]);
