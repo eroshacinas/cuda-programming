@@ -2,6 +2,7 @@
 #include <cuda_runtime.h> // cuda header
 
 #define SIZE 1000
+#define THREADS_PER_BLOCK 64
 
 // func prototypes
 void populateVector(float *v);
@@ -95,7 +96,7 @@ void cudaVecFloatAdd(float *A_h, float *B_h, float *C_h) {
     // part 2: launch kernel to do operation on device
     // launch ceil(n/256) blocks of 256 threads each
     // configuration params are in <<<numBlocks, numThreadsPerBlock>>>
-    cudaVecFloatAddKernel<<<ceil(SIZE/256.0), 256>>>(A_d, B_d, C_d, SIZE);
+    cudaVecFloatAddKernel<<<ceil(SIZE/(float)THREADS_PER_BLOCK), THREADS_PER_BLOCK>>>(A_d, B_d, C_d, SIZE);
 
 
     // part 3: transfer result from device to host and free device memory
