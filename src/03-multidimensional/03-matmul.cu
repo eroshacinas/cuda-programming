@@ -13,6 +13,7 @@ void printMatrix(float M[WIDTH][WIDTH]);
 float* linearizeMatrix(float M[WIDTH][WIDTH]);
 void printLinearMatrix(float *M);
 void initializeMatrix(float M[WIDTH][WIDTH]);
+void transpose2DMatrix(float in[WIDTH][WIDTH], float out[WIDTH][WIDTH]);
 
 __global__ void MatrixMulKernel(float *M, float *N, float *P,int Width);
 void MatrixMul(float *M_h, float *N_h, float *P_h);
@@ -21,18 +22,25 @@ void MatrixMul(float *M_h, float *N_h, float *P_h);
 int main(){
     printf("matrix multiplication\n");
     // initialize 2D matrix. linearize later
-    float M[WIDTH][WIDTH] = {0}, N[WIDTH][WIDTH] = {0}, P[WIDTH][WIDTH] = {0};
+    float M[WIDTH][WIDTH] = {0}, N[WIDTH][WIDTH] = {0}, N_T[WIDTH][WIDTH] = {0}, P[WIDTH][WIDTH] = {0};
     initializeMatrix(M);
     initializeMatrix(N);
 
-    printMatrix(M);
-    printMatrix(N);
+    // printMatrix(M);
+    // printMatrix(N);
+
+    // tanspose N
+    transpose2DMatrix(N, N_T);
 
     float *linearM = linearizeMatrix(M);
-    float *linearN = linearizeMatrix(N);
+    float *linearN_T = linearizeMatrix(N_T);
     float *linearP = linearizeMatrix(P);
 
-    MatrixMul(linearM, linearN, linearP);
+    
+
+    // printMatrix(N_T);
+
+    MatrixMul(linearM, linearN_T, linearP);
 
     printLinearMatrix(linearP);
 
@@ -144,4 +152,14 @@ void initializeMatrix(float M[WIDTH][WIDTH]){
         }
     }
 
+}
+
+
+void transpose2DMatrix(float in[WIDTH][WIDTH], float out[WIDTH][WIDTH]){
+    int i, j;
+    for(i=0; i<WIDTH; i++){
+        for(j=0; j<WIDTH; j++){
+            out[j][i] = in[i][j];
+        }
+    } 
 }
