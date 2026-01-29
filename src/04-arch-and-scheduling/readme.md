@@ -1,70 +1,98 @@
 ## Chapter 04 - GPU Architecture and Scheduling
 
-- GPU architecture is organized into an array of highly threaded streaming multiprocessors (SMs)
+### GPU Architecture Overview
 
-- Each SM has several processing units called streaming processors or CUDA cores (or just cores)
+- GPU architecture is organized into an array of highly threaded **Streaming Multiprocessors (SMs)**
 
-- Each SM has its own control and on-chip memory (which differs from global memory or VRAM)
+- Each SM contains several processing units called:
+  - Streaming Processors
+  - CUDA Cores (or simply "cores")
+
+- Each SM has its own:
+  - Control unit
+  - On-chip memory (distinct from global memory/VRAM)
 
 ![GPU Architecture](images/gpu-arch.png)
 
+---
+
 ### Block Assignment
 
-- Multiple blocks are likely to be simultaneously assigned to the same SM
+- **Multiple blocks** are likely to be simultaneously assigned to the same SM
 
-- However, blocks need to reserve hardware resources to execute, so only a limited number of blocks can be simultaneously assigned to a given SM
+- Blocks require hardware resources to execute, so only a **limited number** of blocks can be simultaneously assigned to any given SM
 
-- There's a limit on the total number of blocks that can be simulteneously executing in a CUDA device
+- There's a limit on the total number of blocks that can simultaneously execute on a CUDA device
 
-- The assignment of threads to SMs on a block-by-block basis guarantees that threads in the same block are scheduled simultaneously on the same SM
-
-- This makes it possible for threads in the same block to interact with each other in ways that threads across different blocks can't.
+- Assignment of threads to SMs occurs on a **block-by-block basis**, guaranteeing that:
+  - All threads in the same block are scheduled simultaneously
+  - All threads in the same block execute on the same SM
+  
+- This enables threads within a block to interact in ways that threads across different blocks cannot
 
 ![Block Assignment](images/block-assignment.png)
 
+---
+
 ### Synchronization and Transparent Scalability
 
-- CUDA allows threads in the same block to coordinate activities using barrier sync func `__syncthreads()`
+#### Barrier Synchronization
 
-- `__syncthreads()` must be executed by **all** threads in a block
+- CUDA allows threads in the same block to coordinate activities using the barrier synchronization function: **`__syncthreads()`**
+
+- **Important**: `__syncthreads()` must be executed by **all** threads in a block
 
 ![Barrier Synchronization](images/barrier-sync.png)
 
-- if `__syncthreads()` is placed in an if statement, either all threads in a block execute the path that includes the `__syncthreads()` or **none** of them does
+#### Correct Usage Rules
 
-- an incorrect use is shown below
+- If `__syncthreads()` is placed within an `if` statement, either:
+  - **All** threads in a block execute the path that includes `__syncthreads()`, OR
+  - **None** of them do
 
-```C
+#### Incorrect Usage Example
+
+```c
 void incorrect_barrier_example(int n) {
-    ...
-    if(threadIdx.x % 2 == 0){
-        ...
-        __syncthreads{};
+    // ...existing code...
+    if (threadIdx.x % 2 == 0) {
+        // ...existing code...
+        __syncthreads();
     } else {
-        ...
-        __syncthreads{};
+        // ...existing code...
+        __syncthreads();
     }
 }
 ```
 
-- the code above violates the rule of threads executing at the same line where `__syncthreads{}` is called. THis results in an undefined behavior
+⚠️ **Why this is wrong**: The code above violates the rule that all threads must execute `__syncthreads()` at the same program point. This results in **undefined behavior**.
 
-- In general, incorrect usage of barrier synchronization can result in incorrect result or a deadlock
+- In general, incorrect usage of barrier synchronization can result in:
+  - Incorrect results
+  - Deadlock
 
-- The trade-off of not allowing barrier synchronization of threads in different blocks leads to transparent scalability as seen below
+#### Transparent Scalability
 
-- If blocks could synchronize with each other: The runtime would need to schedule all blocks that need to sync together at the same time, which would require enormous resources and limit how the GPU could execute your code.
+The trade-off of **not allowing** barrier synchronization between different blocks enables **transparent scalability**:
 
-- By preventing inter-block synchronization: Blocks become completely independent execution units. The runtime can:
+**If blocks could synchronize with each other:**
+- The runtime would need to schedule all blocks that require synchronization at the same time
+- This would require enormous resources
+- It would limit how the GPU could execute your code
 
-* Execute blocks in any order (Block 0 then Block 1, or Block 5 then Block 2, etc.)
-* Execute any number of blocks simultaneously based on available resources
-* Run the same kernel on a cheap GPU with few cores or an expensive GPU with many cores
+**By preventing inter-block synchronization:**
+- Blocks become completely independent execution units
+- The runtime can:
+  - Execute blocks in any order (e.g., Block 0 → Block 1, or Block 5 → Block 2)
+  - Execute any number of blocks simultaneously based on available resources
+  - Run the same kernel on both low-end and high-end GPUs
 
-- From the figure:
-* Left side (low-cost GPU): Only 2 blocks execute simultaneously because this GPU has limited execution resources (SMs, registers, shared memory)
-* Right side (high-end GPU): 4 blocks execute simultaneously because this GPU has more resources
+**Example from the figure:**
+- **Left side (low-cost GPU)**: Only 2 blocks execute simultaneously due to limited execution resources (SMs, registers, shared memory)
+- **Right side (high-end GPU)**: 4 blocks execute simultaneously thanks to greater available resources
 
 ![Barrier Scalability](images/barrier-sync-scalability.png)
+
+---
 
 
