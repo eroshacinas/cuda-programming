@@ -26,5 +26,45 @@
 
 - CUDA allows threads in the same block to coordinate activities using barrier sync func `__syncthreads()`
 
+- `__syncthreads()` must be executed by **all** threads in a block
+
 ![Barrier Synchronization](images/barrier-sync.png)
+
+- if `__syncthreads()` is placed in an if statement, either all threads in a block execute the path that includes the `__syncthreads()` or **none** of them does
+
+- an incorrect use is shown below
+
+```C
+void incorrect_barrier_example(int n) {
+    ...
+    if(threadIdx.x % 2 == 0){
+        ...
+        __syncthreads{};
+    } else {
+        ...
+        __syncthreads{};
+    }
+}
+```
+
+- the code above violates the rule of threads executing at the same line where `__syncthreads{}` is called. THis results in an undefined behavior
+
+- In general, incorrect usage of barrier synchronization can result in incorrect result or a deadlock
+
+- The trade-off of not allowing barrier synchronization of threads in different blocks leads to transparent scalability as seen below
+
+- If blocks could synchronize with each other: The runtime would need to schedule all blocks that need to sync together at the same time, which would require enormous resources and limit how the GPU could execute your code.
+
+- By preventing inter-block synchronization: Blocks become completely independent execution units. The runtime can:
+
+* Execute blocks in any order (Block 0 then Block 1, or Block 5 then Block 2, etc.)
+* Execute any number of blocks simultaneously based on available resources
+* Run the same kernel on a cheap GPU with few cores or an expensive GPU with many cores
+
+- From the figure:
+* Left side (low-cost GPU): Only 2 blocks execute simultaneously because this GPU has limited execution resources (SMs, registers, shared memory)
+* Right side (high-end GPU): 4 blocks execute simultaneously because this GPU has more resources
+
+![Barrier Scalability](images/barrier-sync-scalability.png)
+
 
