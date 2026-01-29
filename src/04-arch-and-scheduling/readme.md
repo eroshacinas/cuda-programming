@@ -95,4 +95,15 @@ The trade-off of **not allowing** barrier synchronization between different bloc
 
 ---
 
+- transparent scalability is a characteristic of being able to execute the same application program on different hardware, but with zero changes in the code
+
+#### Wards and SIMD hardware
+
+- Conceptually, one should assume that threads in a block can execute in any order with respect to each other.
+
+- Once a block has been assigned to an SM, it is further divided into 32-thread units called `warps`
+
+- The size of warps is implementation specific and can vary in future generations of GPUs.
+
+- A `warp` is the unit of thread scheduling in SMs
 
