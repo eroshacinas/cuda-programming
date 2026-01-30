@@ -107,3 +107,22 @@ The trade-off of **not allowing** barrier synchronization between different bloc
 
 - A `warp` is the unit of thread scheduling in SMs
 
+- Each of the three blocks below are divided into warps for scheduling purposes
+
+- Each warp consists of 32 threads of consecutive `threadIdx` values: threads 0-31 form the first warp, 32-63 form the second warp, and so on.  
+
+- warps have a **fixed size of 32**
+
+- to calculate number of warps in an SM: a block with 256 threads will have 256/32 = 8 warps. With three blocks in the SM: 8 x 3 = 24 warps
+
+- For a block whose size is not a multiple of 32, the last warp will be padded with inactive threads to fill up the 32 thread positions. E.g. if a block has 48 threads, it will be partitioned into two warps, and the second warp will be padded with 16 inactive threads
+
+![Warp-Partitioned Blocks](images/warps.png)
+
+- For blocks that consist of multiple dimensions of threads, the dimensions will be projected into a linearized row-major layout before partitioning into warps
+
+![Warp-Partitioned Blocks](images/2d-warp-linearized.png)
+
+
+![SM for SIMD Execution](images/sm-architecture.png)
+
