@@ -126,3 +126,10 @@ The trade-off of **not allowing** barrier synchronization between different bloc
 
 ![SM for SIMD Execution](images/sm-architecture.png)
 
+#### Control Divergence
+
+- threads in the same warp that follow different execution paths exhibit `control divergence`
+- for an if-else construct, if some threads in a warp follow the if-path while others follow the else path, the hardware will take two passes. 
+
+- One pass executes the threads that follow the if-path, and the other executes the threads that follow the else-path
+- During each pass, the threads that follow the other path are not allowed to take effect.
