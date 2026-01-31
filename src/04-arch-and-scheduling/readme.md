@@ -133,3 +133,35 @@ The trade-off of **not allowing** barrier synchronization between different bloc
 
 - One pass executes the threads that follow the if-path, and the other executes the threads that follow the else-path
 - During each pass, the threads that follow the other path are not allowed to take effect.
+
+![Threads Diverging on If-Else](images/threads-conditional-diverge.png)
+
+
+#### Warp Scheduling and Latency Tolerance
+
+- SMs only have limited execution units or cores to execute a subset of all threads assigned to it at any point in time
+- In more recent designs, each SM can execute instructions for a small number of warps at any given point in time
+- Assigning so many warps to an SM even though it can only execute a subet is how GPUs tolerate long-latency operations such as global memory accesses.
+
+- I.e. The SM schedules many more warps than it can execute at once so that when one warp hits a 'red light' (waiting for data from VRAM), it can switch to a 'ready' warp in zero clock cycles, ensuring the math units never sit idle.
+
+- The GPU achieves zero-cycle / zero-overhead switching through a "brute force" hardware strategy: The SM never moves the data. It's able to achieve this by having the resgisters and local state of every single assigned warp physically stored on the chip at the same time
+
+  - On a CPU: There is only one set of registers. To switch tasks, you must "write down" the current state to RAM and "read in" the new state
+  - On a GPU: The SM has a massive Register File. When a Block is assigned to an SM, the hardware carves out a permanent slice of registers for those threads. They stay there until the Block is completely finished
+
+- The mechanism of filling latency time of operations from some threads with work from other threads is often called `latency tolerance` or `latency hiding`
+
+- Recall:
+  - Each block has a fixed-limit of 1,024 threads, regardless of x, y, z dimension
+  - A warp also has a fixed-limit of 32 threads
+
+- These constraints are the reason why an SM can fit all assigned blocks to it.
+- An SM contains 65,536 (64K) 32-bit registers (in modern GPUs). The SM will throw an error if it can't fit all states of a block/warp
+
+- Additionally, it's difficult to double the threads per block as it increases hardware complexity and timing considerations. E.g. `__syncthreads()` for 1,024 threads is manageable; managing it for 10,000 threads would require a massive amount of "wait logic" circuitry that would take up space better used for math unit
+
+- For latency tolerance to be effective, it is desirable for an SM to have many more threads assigned to it than can be simultaneously supported with its execution resources to maximize the chance of finding a warp that is ready to execute at any point in time
+
+
+#### Resource Partitioning and Occupancy
