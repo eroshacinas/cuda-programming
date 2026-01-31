@@ -1,215 +1,313 @@
-## Chapter 04 - GPU Architecture and Scheduling
+# 🚀 Chapter 04 - GPU Architecture and Scheduling
 
-### GPU Architecture Overview
+---
 
-- GPU architecture is organized into an array of highly threaded **Streaming Multiprocessors (SMs)**
+## 📐 GPU Architecture Overview
 
-- Each SM contains several processing units called:
-  - Streaming Processors
-  - CUDA Cores (or simply "cores")
+**GPU architecture is organized into an array of highly threaded Streaming Multiprocessors (SMs)**
 
-- Each SM has its own:
-  - Control unit
-  - On-chip memory (distinct from global memory/VRAM)
+Each **SM (Streaming Multiprocessor)** contains:
+- 🔹 **Streaming Processors** / **CUDA Cores** (or simply "cores")
+- 🔹 **Control Unit**
+- 🔹 **On-chip Memory** (distinct from global memory/VRAM)
 
 ![GPU Architecture](images/gpu-arch.png)
 
 ---
 
-### Block Assignment
+## 🧩 Block Assignment
 
-- **Multiple blocks** are likely to be simultaneously assigned to the same SM
+### Key Concepts
 
-- Blocks require hardware resources to execute, so only a **limited number** of blocks can be simultaneously assigned to any given SM
+- ✅ **Multiple blocks** are likely to be simultaneously assigned to the same SM
+- ⚠️ Blocks require hardware resources, so only a **limited number** can be simultaneously assigned to any given SM
+- 📊 There's a limit on the total number of blocks that can simultaneously execute on a CUDA device
 
-- There's a limit on the total number of blocks that can simultaneously execute on a CUDA device
+### Assignment Guarantees
 
-- Assignment of threads to SMs occurs on a **block-by-block basis**, guaranteeing that:
-  - All threads in the same block are scheduled simultaneously
-  - All threads in the same block execute on the same SM
-  
-- This enables threads within a block to interact in ways that threads across different blocks cannot
+Assignment of threads to SMs occurs on a **block-by-block basis**, guaranteeing:
+
+1. All threads in the same block are **scheduled simultaneously**
+2. All threads in the same block **execute on the same SM**
+
+> 💡 This enables threads within a block to interact in ways that threads across different blocks cannot
 
 ![Block Assignment](images/block-assignment.png)
 
 ---
 
-### Synchronization and Transparent Scalability
+## 🔄 Synchronization and Transparent Scalability
 
-#### Barrier Synchronization
+### Barrier Synchronization
 
-- CUDA allows threads in the same block to coordinate activities using the barrier synchronization function: **`__syncthreads()`**
+CUDA allows threads in the same block to coordinate activities using:
 
-- **Important**: `__syncthreads()` must be executed by **all** threads in a block
+```c
+__syncthreads()
+```
+
+> ⚠️ **Critical Rule**: `__syncthreads()` must be executed by **ALL** threads in a block
 
 ![Barrier Synchronization](images/barrier-sync.png)
 
-#### Correct Usage Rules
+### ✅ Correct Usage Rules
 
-- If `__syncthreads()` is placed within an `if` statement, either:
-  - **All** threads in a block execute the path that includes `__syncthreads()`, OR
-  - **None** of them do
+If `__syncthreads()` is placed within an `if` statement:
+- Either **ALL** threads in a block execute the path that includes `__syncthreads()`
+- OR **NONE** of them do
 
-#### Incorrect Usage Example
+### ❌ Incorrect Usage Example
 
 ```c
 void incorrect_barrier_example(int n) {
     // ...existing code...
     if (threadIdx.x % 2 == 0) {
         // ...existing code...
-        __syncthreads();
+        __syncthreads();  // ❌ WRONG!
     } else {
         // ...existing code...
-        __syncthreads();
+        __syncthreads();  // ❌ WRONG!
     }
 }
 ```
 
-⚠️ **Why this is wrong**: The code above violates the rule that all threads must execute `__syncthreads()` at the same program point. This results in **undefined behavior**.
+> ⚠️ **Why this is wrong**: The code violates the rule that all threads must execute `__syncthreads()` at the same program point. This results in **undefined behavior**.
 
-- In general, incorrect usage of barrier synchronization can result in:
-  - Incorrect results
-  - Deadlock
-
-#### Transparent Scalability
-
-The trade-off of **not allowing** barrier synchronization between different blocks enables **transparent scalability**:
-
-**If blocks could synchronize with each other:**
-- The runtime would need to schedule all blocks that require synchronization at the same time
-- This would require enormous resources
-- It would limit how the GPU could execute your code
-
-**By preventing inter-block synchronization:**
-- Blocks become completely independent execution units
-- The runtime can:
-  - Execute blocks in any order (e.g., Block 0 → Block 1, or Block 5 → Block 2)
-  - Execute any number of blocks simultaneously based on available resources
-  - Run the same kernel on both low-end and high-end GPUs
-
-**Example from the figure:**
-- **Left side (low-cost GPU)**: Only 2 blocks execute simultaneously due to limited execution resources (SMs, registers, shared memory)
-- **Right side (high-end GPU)**: 4 blocks execute simultaneously thanks to greater available resources
-
-![Barrier Scalability](images/barrier-sync-scalability.png)
+**Consequences of incorrect usage:**
+- 💥 Incorrect results
+- 🔒 Deadlock
 
 ---
 
-- transparent scalability is a characteristic of being able to execute the same application program on different hardware, but with zero changes in the code
+### 🎯 Transparent Scalability
 
-#### Wards and SIMD hardware
+The trade-off of **not allowing** barrier synchronization between different blocks enables **transparent scalability**.
 
-- Conceptually, one should assume that threads in a block can execute in any order with respect to each other.
+#### ❌ If blocks could synchronize with each other:
+- Runtime would need to schedule all blocks requiring synchronization at the same time
+- Would require enormous resources
+- Would limit how the GPU could execute your code
 
-- Once a block has been assigned to an SM, it is further divided into 32-thread units called `warps`
+#### ✅ By preventing inter-block synchronization:
 
-- The size of warps is implementation specific and can vary in future generations of GPUs.
+Blocks become completely **independent execution units**, allowing the runtime to:
 
-- A `warp` is the unit of thread scheduling in SMs
+1. 🔀 Execute blocks in **any order** (e.g., Block 0 → Block 1, or Block 5 → Block 2)
+2. ⚡ Execute **any number** of blocks simultaneously based on available resources
+3. 🌐 Run the same kernel on both **low-end and high-end GPUs**
 
-- Each of the three blocks below are divided into warps for scheduling purposes
+**Visual Example:**
 
-- Each warp consists of 32 threads of consecutive `threadIdx` values: threads 0-31 form the first warp, 32-63 form the second warp, and so on.  
+| Low-Cost GPU | High-End GPU |
+|-------------|--------------|
+| 2 blocks execute simultaneously | 4 blocks execute simultaneously |
+| Limited execution resources | Greater available resources |
 
-- warps have a **fixed size of 32**
+![Barrier Scalability](images/barrier-sync-scalability.png)
 
-- to calculate number of warps in an SM: a block with 256 threads will have 256/32 = 8 warps. With three blocks in the SM: 8 x 3 = 24 warps
+> 💡 **Transparent scalability** = Execute the same application program on different hardware with **zero code changes**
 
-- For a block whose size is not a multiple of 32, the last warp will be padded with inactive threads to fill up the 32 thread positions. E.g. if a block has 48 threads, it will be partitioned into two warps, and the second warp will be padded with 16 inactive threads
+---
+
+## 🌊 Warps and SIMD Hardware
+
+### Understanding Warps
+
+> 📌 Conceptually, one should assume that threads in a block can execute in **any order** with respect to each other.
+
+#### Key Definitions
+
+- 📦 **Warp**: A 32-thread unit for scheduling in SMs
+- 🔢 **Warp Size**: Fixed at **32 threads** (implementation-specific, may vary in future GPUs)
+- 📋 **Thread Organization**: Consecutive `threadIdx` values (0-31 → first warp, 32-63 → second warp, etc.)
+
+### Warp Calculation Examples
+
+```
+Block with 256 threads:
+  → 256/32 = 8 warps per block
+  → With 3 blocks in SM: 8 × 3 = 24 warps total
+
+Block with 48 threads:
+  → 2 warps (second warp padded with 16 inactive threads)
+```
+
+> ⚠️ For blocks whose size is **not a multiple of 32**, the last warp will be padded with inactive threads to fill up the 32 thread positions.
 
 ![Warp-Partitioned Blocks](images/warps.png)
 
-- For blocks that consist of multiple dimensions of threads, the dimensions will be projected into a linearized row-major layout before partitioning into warps
+### Multi-Dimensional Thread Blocks
+
+For blocks with multiple dimensions of threads:
+- Dimensions are projected into a **linearized row-major layout**
+- Then partitioned into warps
 
 ![Warp-Partitioned Blocks](images/2d-warp-linearized.png)
 
-
 ![SM for SIMD Execution](images/sm-architecture.png)
 
-#### Control Divergence
+---
 
-- threads in the same warp that follow different execution paths exhibit `control divergence`
-- for an if-else construct, if some threads in a warp follow the if-path while others follow the else path, the hardware will take two passes. 
+## 🔀 Control Divergence
 
-- One pass executes the threads that follow the if-path, and the other executes the threads that follow the else-path
-- During each pass, the threads that follow the other path are not allowed to take effect.
+### What is Control Divergence?
+
+Threads in the same warp that follow **different execution paths** exhibit **control divergence**.
+
+### How It Works
+
+For an `if-else` construct:
+1. If some threads follow the `if`-path and others follow the `else`-path
+2. Hardware takes **two passes**:
+   - 🔹 Pass 1: Execute threads following the `if`-path
+   - 🔹 Pass 2: Execute threads following the `else`-path
+3. During each pass, threads following the other path are **inactive**
 
 ![Threads Diverging on If-Else](images/threads-conditional-diverge.png)
 
+---
 
-#### Warp Scheduling and Latency Tolerance
+## ⚡ Warp Scheduling and Latency Tolerance
 
-- SMs only have limited execution units or cores to execute a subset of all threads assigned to it at any point in time
-- In more recent designs, each SM can execute instructions for a small number of warps at any given point in time
-- Assigning so many warps to an SM even though it can only execute a subet is how GPUs tolerate long-latency operations such as global memory accesses.
+### The Challenge
 
-- I.e. The SM schedules many more warps than it can execute at once so that when one warp hits a 'red light' (waiting for data from VRAM), it can switch to a 'ready' warp in zero clock cycles, ensuring the math units never sit idle.
+- SMs have **limited execution units** to execute only a subset of assigned threads at any point in time
+- Recent designs: Each SM can execute instructions for a **small number of warps** at any given point in time
 
-- The GPU achieves zero-cycle / zero-overhead switching through a "brute force" hardware strategy: The SM never moves the data. It's able to achieve this by having the resgisters and local state of every single assigned warp physically stored on the chip at the same time
+### The Solution: Latency Hiding
 
-  - On a CPU: There is only one set of registers. To switch tasks, you must "write down" the current state to RAM and "read in" the new state
-  - On a GPU: The SM has a massive Register File. When a Block is assigned to an SM, the hardware carves out a permanent slice of registers for those threads. They stay there until the Block is completely finished
+> 💡 Assigning many more warps to an SM than it can execute at once is how GPUs tolerate **long-latency operations** (e.g., global memory accesses).
 
-- The mechanism of filling latency time of operations from some threads with work from other threads is often called `latency tolerance` or `latency hiding`
+**Analogy**: The SM schedules many more warps than it can execute at once so that when one warp hits a **'red light'** (waiting for data from VRAM), it can switch to a **'ready' warp** in **zero clock cycles**, ensuring the math units never sit idle.
 
-- Recall:
-  - Each block has a fixed-limit of 1,024 threads, regardless of x, y, z dimension
-  - A warp also has a fixed-limit of 32 threads
+### 🔧 Zero-Overhead Context Switching
 
-- These constraints are the reason why an SM can fit all assigned blocks to it.
-- An SM contains 65,536 (64K) 32-bit registers (in modern GPUs). The SM will throw an error if it can't fit all states of a block/warp
+The GPU achieves **zero-cycle switching** through a "brute force" hardware strategy:
 
-- Additionally, it's difficult to double the threads per block as it increases hardware complexity and timing considerations. E.g. `__syncthreads()` for 1,024 threads is manageable; managing it for 10,000 threads would require a massive amount of "wait logic" circuitry that would take up space better used for math unit
+| 💻 CPU | 🎮 GPU |
+|--------|--------|
+| One set of registers | Massive Register File |
+| Must save/restore state to RAM | All warp states stored on-chip simultaneously |
+| Context switch overhead | Zero-overhead switching |
 
-- For latency tolerance to be effective, it is desirable for an SM to have many more threads assigned to it than can be simultaneously supported with its execution resources to maximize the chance of finding a warp that is ready to execute at any point in time
+**How it works:**
+- When a Block is assigned to an SM, the hardware **carves out a permanent slice of registers** for those threads
+- They stay there until the Block is **completely finished**
 
+### 📊 Key Constraints
 
-#### Resource Partitioning and Occupancy
+```
+Block Limits:
+  ✓ Max 1,024 threads per block (regardless of x, y, z dimensions)
+  ✓ Fixed warp size of 32 threads
 
-- `Occupancy` is the ratio of number of warps assigned to an SM to the max number it supports
-- The execution resources in an SM are: registers, shared memory, thread block slots, and thread slots
-- The above resources are dynamically partitioned across threads to support their execution
-- E.g. an Ampere A100 GPU 
-  - max of 32 blocks per SM
-  - max of 64 warps (2048 threads) per SM
-  - 1024 threads per block
-  - Both max blocks and warps per SM are independent hardware limits. Whichever one you hit first is your "bottleneck."
-  
-  - Imagine a restaurant (the SM) that has:
-  - Total Seats: 2,048 (Max Threads)
-  - Total Tables: 32 (Max Blocks)
+Register File:
+  ✓ 65,536 (64K) 32-bit registers per SM
+  ✓ SM throws error if it can't fit all states
+```
 
-  - Scenario A: Huge Groups (Your Example) You bring in groups of 1,024 people (1,024 threads per block).
-  - You seat the first group: 1,024 seats used, 1 table used.
-  - You seat the second group: 2,048 seats used, 2 tables used.
-  - Result: You are out of seats. You can't fit any more people, even though you have 30 empty tables left.
+> 🔬 **Why not increase thread limits?** Doubling threads per block increases hardware complexity:
+> - `__syncthreads()` for 1,024 threads is manageable
+> - For 10,000 threads would require massive "wait logic" circuitry
+> - That space is better used for math units
 
-  - Scenario B: Tiny GroupsYou bring in groups of 32 people (one warp per block).
-  - You seat 32 groups.Result: You have used all 32 tables, but you’ve only seated 1,024 people ($32 \times 32 = 1024$). - The other 1,024 seats stay empty because the restaurant (SM) only has 32 "Check-in" slots to manage block metadata.
+**Latency Tolerance Principle:**
+> 🎯 For effective latency tolerance, an SM should have **many more threads assigned** than can be simultaneously executed, maximizing the chance of finding a ready warp at any point in time.
 
-- To run at full occupancy, each SM needs enough registers for 2048 threads, which means that each thread should not use more than (65,536 registers)/(2048 threads) = 32 registers per thread.
+---
 
-#### Querying Device Properties
+## 📊 Resource Partitioning and Occupancy
 
-- The code below returns number of available CUDA devices int he system
+### Occupancy Definition
 
-```C
+```
+Occupancy = (Number of warps assigned to SM) / (Maximum warps SM supports)
+```
+
+### 🛠️ Execution Resources
+
+An SM's resources are dynamically partitioned across threads:
+
+1. 📝 **Registers**
+2. 💾 **Shared Memory**
+3. 🎫 **Thread Block Slots**
+4. 👥 **Thread Slots**
+
+### Example: Ampere A100 GPU
+
+```
+Hardware Limits:
+  • Max 32 blocks per SM
+  • Max 64 warps (2,048 threads) per SM
+  • Max 1,024 threads per block
+  • 65,536 (64K) 32-bit registers per SM
+```
+
+> ⚠️ **Both max blocks and warps per SM are independent hardware limits. Whichever one you hit first is your "bottleneck."**
+
+### 🍽️ Restaurant Analogy
+
+Imagine a restaurant (the SM) with:
+- 🪑 **Total Seats**: 2,048 (Max Threads)
+- 🏷️ **Total Tables**: 32 (Max Blocks)
+
+#### Scenario A: Huge Groups (1,024 threads per block)
+
+```
+Group 1: 1,024 seats used, 1 table used
+Group 2: 2,048 seats used, 2 tables used
+Result: ❌ Out of seats! (30 empty tables left)
+```
+
+#### Scenario B: Tiny Groups (32 threads per block)
+
+```
+32 groups × 32 people = 1,024 people
+Result: ❌ All 32 tables used, but 1,024 seats empty!
+       (SM only has 32 "check-in" slots for block metadata)
+```
+
+### Calculating Full Occupancy
+
+```
+For full occupancy:
+  65,536 registers / 2,048 threads = 32 registers per thread
+```
+
+> ✅ Each thread should use **no more than 32 registers** for full occupancy
+
+---
+
+## 🔍 Querying Device Properties
+
+### Getting Device Count
+
+```c
 int devCount;
 cudaGetDeviceCount(&devCount);
 ```
 
-- we can use the following statements in the host code to iterate through the available devices and query their properties
+### Iterating Through Devices
 
-```C
+```c
 cudaDeviceProp devProp;
-for(unsigned int i = 0; i < devCount; i++){
-  cudaGetDeviceProperties(&devProp, i);
-  // decide if device has sufficient resources/capabilities
+for(unsigned int i = 0; i < devCount; i++) {
+    cudaGetDeviceProperties(&devProp, i);
+    // Decide if device has sufficient resources/capabilities
 }
 ```
 
-- The built-in type cudaDeviceProp is a C struct type with fields that represent the properties of a CUDA device.
-- `devProp.maxThreadsPerBlock` gives the maximum number of threads allowed in a block in the queried device
-- The number of SMs in the device is given in `devProp.multiProcessorCount`
-- the clock frequency of the device is in `devProp.clockRate`
-- The host code can find the maximum number of threads allowed along each dimension of a block in fields `devPropmaxThreadsDim[0]` (for the x dimension), `devProp.maxThreadsDim[1]` (for the y dimension), and `devProp.maxThreadsDim[2]` (for the z dimension).
+### 📋 Important Properties
+
+The `cudaDeviceProp` struct contains fields for device properties:
+
+| Property | Description |
+|----------|-------------|
+| `devProp.maxThreadsPerBlock` | Maximum threads per block |
+| `devProp.multiProcessorCount` | Number of SMs in the device |
+| `devProp.clockRate` | Clock frequency of the device |
+| `devProp.maxThreadsDim[0]` | Max threads in x dimension |
+| `devProp.maxThreadsDim[1]` | Max threads in y dimension |
+| `devProp.maxThreadsDim[2]` | Max threads in z dimension |
+
+---
