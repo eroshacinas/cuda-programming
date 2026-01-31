@@ -165,3 +165,51 @@ The trade-off of **not allowing** barrier synchronization between different bloc
 
 
 #### Resource Partitioning and Occupancy
+
+- `Occupancy` is the ratio of number of warps assigned to an SM to the max number it supports
+- The execution resources in an SM are: registers, shared memory, thread block slots, and thread slots
+- The above resources are dynamically partitioned across threads to support their execution
+- E.g. an Ampere A100 GPU 
+  - max of 32 blocks per SM
+  - max of 64 warps (2048 threads) per SM
+  - 1024 threads per block
+  - Both max blocks and warps per SM are independent hardware limits. Whichever one you hit first is your "bottleneck."
+  
+  - Imagine a restaurant (the SM) that has:
+  - Total Seats: 2,048 (Max Threads)
+  - Total Tables: 32 (Max Blocks)
+
+  - Scenario A: Huge Groups (Your Example) You bring in groups of 1,024 people (1,024 threads per block).
+  - You seat the first group: 1,024 seats used, 1 table used.
+  - You seat the second group: 2,048 seats used, 2 tables used.
+  - Result: You are out of seats. You can't fit any more people, even though you have 30 empty tables left.
+
+  - Scenario B: Tiny GroupsYou bring in groups of 32 people (one warp per block).
+  - You seat 32 groups.Result: You have used all 32 tables, but you’ve only seated 1,024 people ($32 \times 32 = 1024$). - The other 1,024 seats stay empty because the restaurant (SM) only has 32 "Check-in" slots to manage block metadata.
+
+- To run at full occupancy, each SM needs enough registers for 2048 threads, which means that each thread should not use more than (65,536 registers)/(2048 threads) = 32 registers per thread.
+
+#### Querying Device Properties
+
+- The code below returns number of available CUDA devices int he system
+
+```C
+int devCount;
+cudaGetDeviceCount(&devCount);
+```
+
+- we can use the following statements in the host code to iterate through the available devices and query their properties
+
+```C
+cudaDeviceProp devProp;
+for(unsigned int i = 0; i < devCount; i++){
+  cudaGetDeviceProperties(&devProp, i);
+  // decide if device has sufficient resources/capabilities
+}
+```
+
+- The built-in type cudaDeviceProp is a C struct type with fields that represent the properties of a CUDA device.
+- `devProp.maxThreadsPerBlock` gives the maximum number of threads allowed in a block in the queried device
+- The number of SMs in the device is given in `devProp.multiProcessorCount`
+- the clock frequency of the device is in `devProp.clockRate`
+- The host code can find the maximum number of threads allowed along each dimension of a block in fields `devPropmaxThreadsDim[0]` (for the x dimension), `devProp.maxThreadsDim[1]` (for the y dimension), and `devProp.maxThreadsDim[2]` (for the z dimension).
